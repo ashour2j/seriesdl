@@ -1,0 +1,4 @@
+requests>=2.31
+beautifulsoup4>=4.12
+qbittorrent-api>=2023.9.51
+tpblite>=0.1

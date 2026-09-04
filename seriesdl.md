@@ -1,10 +1,10 @@
 # Smart TV Series Downloader - User Guide
 
-This directory contains `series_getter.py`, an automated TV series downloader script that scrapes Pirate Bay mirrors and integrates seamlessly with qBittorrent to manage downloads, directories, and queue limits.
+This directory contains `seriesdl.py`, an automated TV series downloader script that scrapes Pirate Bay mirrors and integrates seamlessly with qBittorrent to manage downloads, directories, and queue limits.
 
 ---
 
-## 📋 Prerequisites & Setup
+## Prerequisites & Setup
 
 ### 1. Enable qBittorrent Web UI
 The script controls qBittorrent using its Web API. You must enable it:
@@ -15,58 +15,121 @@ The script controls qBittorrent using its Web API. You must enable it:
 5. Set the Username to `admin` and Password to `adminadmin` (default).
 
 ### 2. Install Required Python Libraries
-Open PowerShell or Command Prompt and install the dependencies:
 ```bash
-pip install qbittorrent-api requests beautifulsoup4 tpblite
+pip install -r requirements.txt
 ```
+(or: `pip install qbittorrent-api requests beautifulsoup4 tpblite`)
+
+### 3. TMDB API Key (Optional but Recommended)
+The script uses TMDB to discover how many seasons/episodes a show has, enabling the interactive episode picker.
+1. Create a free account at [themoviedb.org](https://www.themoviedb.org)
+2. Go to **Settings** -> **API** and generate a key
+3. Either set it in the script config (`TMDB_API_KEY = "your_key"`) or pass it at runtime with `--api-key`
 
 ---
 
-## 🚀 How to Run the Script
+## How to Run the Script
 
-Always navigate to this directory before running the commands:
+### 1. Interactive Mode with TMDB Discovery (Recommended)
+Run without arguments to get prompted, then use the episode picker:
 ```bash
-cd "C:\Users\hazookaa\.gemini\antigravity\scratch\tv_downloader"
+python seriesdl.py
+```
+The script will:
+1. Ask for the show name
+2. Query TMDB to discover all seasons and episodes
+3. Show an **interactive picker** where you select which seasons/episodes to download
+4. Search TPB for your selections
+5. Show a **review screen** where you can remove items before approving
+
+### 2. Episode Picker Commands
+After TMDB discovery, you'll see a menu like:
+```
+=== Episode Picker: Breaking Bad ===
+#    Season     Episodes   Selected   Action
+-------------------------------------------------------
+1    Season 01     7 eps        3/7    [A]ll [N]one [S]elect
+2    Season 02    13 eps        0/13   [A]ll [N]one [S]elect
+```
+- `1A` = Select all episodes in Season 1
+- `2N` = Clear Season 2 selection
+- `3S` = Type specific episodes for Season 3 (e.g. `1,3,5-8`)
+- `ALL` = Select everything
+- `PROCEED` = Go to review screen
+
+### 3. Review Screen
+After TPB search, you'll see a table of what was found:
+```
+=== Download Plan: Breaking Bad ===
+#    Type           Season   Details                              Seeds  Size
+-----------------------------------------------------------------------
+1    Season Pack    S01      Breaking Bad S01 Complete...         45     3.2 GB
+2    Episodes       S02      E01, E02, E03, E05                   120    1.4 GB
+```
+Commands:
+- `R 2` = Remove item #2 from the plan
+- `GO` = Approve and start downloading
+- `ADD` = Go back to episode picker to add more
+- `CANCEL` = Abort
+
+### 4. Dry-Run Mode (Test without downloading)
+```bash
+python seriesdl.py "Cosmos" --seasons "1" --dry-run
 ```
 
-### 1. Simple Interactive Mode (Highly Recommended)
-If you run the script without any arguments, it will prompt you for the show name:
+### 5. Direct Quality Filtering
 ```bash
-python series_getter.py
+python seriesdl.py "Chernobyl" --quality "1080p"
 ```
 
-### 2. Dry-Run Mode (Test Search results)
-Use `--dry-run` to see which torrents would be chosen and how sizes are parsed without actually sending anything to qBittorrent. 
-At the end of execution, the script displays a **Dry-Run Download Plan Summary**—a beautiful, colorized ASCII table showing every complete season pack or individual episode that would be queued, its parsed file size, and seeder count:
+### 6. Legacy Season Range Mode (No TMDB)
+If you don't have a TMDB API key or pass `--seasons`, it falls back to the old auto-scan behavior:
 ```bash
-python series_getter.py "Cosmos" --seasons "1" --dry-run
+python seriesdl.py "Game of Thrones" --seasons "1-3"
 ```
 
-### 3. Curated Selection Mode (Pick Manually)
-Use `--interactive` to display a menu of the top 10 torrents found for each season or episode, allowing you to select your preferred choice manually:
+### 7. Specify TMDB Key at Runtime
 ```bash
-python series_getter.py "Breaking Bad" --seasons "1" --interactive
+python seriesdl.py "Breaking Bad" --api-key "YOUR_TMDB_KEY_HERE"
 ```
 
-### 4. Direct Quality Filtering
-Strictly force a specific resolution tag to be present (e.g. `1080p` instead of preferring `720p`):
+### 8. Additional CLI Options
 ```bash
-python series_getter.py "Chernobyl" --quality "1080p"
+python seriesdl.py "Chernobyl" --quality "1080p" --download-dir "E:\TV" --max-concurrent 2
+python seriesdl.py "Cosmos" --seasons "1-2" --min-seeders 10 --no-monitor
+python seriesdl.py "Cosmos" --seasons "1" --dry-run --domains "https://tpb.party"   # use only specific mirrors
+python seriesdl.py "Cosmos" --seasons "1" --no-title-match                          # disable show-name filtering
+python seriesdl.py --verify-domains                                                 # test which mirrors are up
 ```
+Full list: `python seriesdl.py --help`.
 
-### 5. Custom Season Ranges
-Specify a range of seasons (e.g., seasons 1 to 3) or individual seasons separated by commas:
-```bash
-python series_getter.py "Game of Thrones" --seasons "1-3"
-python series_getter.py "Sherlock" --seasons "1,3"
-```
+Notable flags:
+- `--verify-domains` – probes every configured mirror and reports which are reachable, then exits.
+- `--domains "url1,url2"` – override the mirror list for a single run.
+- `--download-dir` – root folder for downloads (default `./downloads`).
+- `--max-concurrent` / `--min-seeders` – override the download-slot and seeder limits.
+- `--category` / `--tag` – set the qBittorrent category/tag (default category `series-getter`, tag = show name).
+- `--no-monitor` – skip the live download dashboard after queueing.
+- `--no-title-match` – disable verification that results actually match the show name.
+- `--qbt-host` / `--qbt-port` / `--qbt-user` / `--qbt-pass` – point at a non-default qBittorrent WebUI.
+
+### 9. Best Practice: Check Your Mirrors First
+TPB mirrors change frequently. Run `python seriesdl.py --verify-domains` first and pass the
+working ones with `--domains` (e.g. `--domains "https://tpb.party,https://piratebay.party"`)
+to cut down on timeouts from dead mirrors.
 
 ---
 
-## ⚙️ How it Works Under the Hood
+## How it Works Under the Hood
 
-- **Smart Resolution & Size Prioritization**: The script prioritizes **720p** resolution, selecting the **smallest file size** (to save bandwidth and disk space). If no 720p is found, it falls back to **1080p** (again, selecting the **smallest file size**).
-- **Auto-Sweep Loop**: If a complete season pack is not found, the script switches to episode-by-episode sweeps, sequentially downloading `E01`, `E02`, etc., until **3 consecutive episode numbers** return 0 results (safely concluding the season has ended).
-- **Automatic Resume Tracking**: The script tracks queued episodes in `series_getter_state.json`. If you stop and restart, it skips already-downloaded items unless you specify the `--force` flag.
-- **Dynamic Queue Management**: The script will only let 3 torrents download concurrently (defined by `MAX_CONCURRENT`). Extra torrents are added as `paused` and are automatically resumed in order as active slots free up.
-- **Smart Seeder Bypass**: If a proxy mirror hides peer counts (reporting `0` seeds for everything), the script automatically bypasses the minimum seeder check so downloads do not fail.
+- **TMDB Discovery**: Fetches the real season/episode structure so you know exactly what exists before searching.
+- **Interactive Episode Picker**: You choose exactly what to download — entire series, specific seasons, or cherry-picked episodes.
+- **Review & Approval**: Full control before any downloading starts. Remove items, add more, or cancel.
+- **Smart Resolution & Size Prioritization**: Prioritizes **720p** (smallest file), falls back to **1080p**.
+- **Season Pack Detection**: Automatically tries to find complete season packs before falling back to individual episodes.
+- **Automatic Resume Tracking**: Tracks queued episodes in `series_getter_state.json`. Restarts skip already-queued items unless `--force` is used. State is written atomically so a crash can't corrupt it.
+- **Dynamic Queue Management**: Only 3 torrents download concurrently. Extra torrents are paused and auto-resumed as slots free up.
+- **Smart Seeder Bypass**: If a proxy mirror hides peer counts (reporting `0` seeds), the script bypasses the minimum seeder check.
+- **Show-Name Verification**: Search results are filtered to those that actually reference the requested show, avoiding similarly-titled content (disable with `--no-title-match`).
+- **Query Cache**: Repeated searches (e.g. when re-entering the review screen) reuse cached mirror results instead of re-scraping.
+- **Windows-Friendly Output**: Colors auto-enable in the console and degrade gracefully when piped, and the log auto-rotates.

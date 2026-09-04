@@ -26,3 +26,10 @@ build/
 
 # Playwright / browser data
 playwright_user_data/
+
+# Series Getter runtime data
+series_getter_state.json
+series_getter_state.json.tmp
+series_getter.log
+series_getter.log.old
+downloads/
